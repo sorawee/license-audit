@@ -12,10 +12,19 @@ This package provides a tool @exec{raco license-audit} to audit package licenses
 
 @section{Running @exec{raco license-audit}}
 
-@exec{raco license-audit -l @nonterm{name} ...} displays license information of @nonterm{name},
+@exec{raco license-audit @nonterm{name} ...} displays license information of @nonterm{name},
 including its dependencies, to the standard output.
-@nonterm{name} must be installed locally.
-In the future, we plan to support the command without the @Flag{l} flag, which will read the license information
+
+The @exec{raco license-audit} command accepts the following flags:
+
+@itemlist[
+  @item{@DFlag{local}, @Flag{l} --- read the license information from local installation.
+        This means that @nonterm{name}s must be installed locally.
+        Currently, this flag is @bold{mandatory}.}
+  @item{@DFlag{build-time}, @Flag{b} --- also include build-time dependencies.}
+]
+
+In the future, we plan to support the command without the @DFlag{local} flag, which will read the license information
 directly from the package server without requiring local installation.
 However, currently this feature is still not supported.
 
