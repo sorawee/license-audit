@@ -28,7 +28,7 @@ In the future, we plan to support the command without the @DFlag{local} flag, wh
 directly from the package server without requiring local installation.
 However, currently this feature is still not supported.
 
-As an example, running @exec{raco license-audit -l fmt} would output the following
+As an example, running @exec{raco license-audit -l fmt} on some systems might output the following
 (provided that the package @tt{fmt} is installed)
 
 @verbatim|{
