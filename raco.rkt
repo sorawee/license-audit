@@ -1,5 +1,8 @@
 #lang racket
 
+;; suppress running tests on this file
+(module test racket/base)
+
 (require raco/command-name
          license-audit
          racket/cmdline
