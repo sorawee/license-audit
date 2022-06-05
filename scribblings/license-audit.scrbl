@@ -18,14 +18,14 @@ including its dependencies, to the standard output.
 The @exec{raco license-audit} command accepts the following flags:
 
 @itemlist[
-  @item{@DFlag{local}, @Flag{l} --- read the license information from local installation.
+  @item{@DFlag{local-only}, @Flag{l} --- read the license information from only local installation.
         This means that @nonterm{name}s must be installed locally.
         Currently, this flag is @bold{mandatory}.}
   @item{@DFlag{build-time}, @Flag{b} --- also include build-time dependencies.}
 ]
 
-In the future, we plan to support the command without the @DFlag{local} flag, which will read the license information
-directly from the package server without requiring local installation.
+In the future, we plan to support the command without the @DFlag{local-only} flag, which will allow reading
+the license information from the package server without requiring local installation.
 However, currently this feature is still not supported.
 
 As an example, running @exec{raco license-audit -l fmt} on some systems might output the following
