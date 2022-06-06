@@ -15,7 +15,7 @@
   (command-line
    #:program (short-program+command-name)
    #:once-each
-   [("-l" "--local-only") "Onl use local packages" (set! local? #t)]
+   [("-l" "--local-only") "Only use local packages" (set! local? #t)]
    [("-b" "--build-time") "Include build-time dependencies" (set! build-deps? #t)]
    #:args pkgs
    pkgs))
