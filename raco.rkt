@@ -8,51 +8,63 @@
          racket/cmdline
          text-table)
 
-(define local? #f)
+(define mode #f)
 (define build-deps? #f)
 
 (define pkgs
   (command-line
    #:program (short-program+command-name)
+   #:once-any
+   [("-l" "--local-only") "Only use local packages" (set! mode 'local)]
+   [("-g" "--global-only") "Only use global packages" (set! mode 'global)]
    #:once-each
-   [("-l" "--local-only") "Only use local packages" (set! local? #t)]
    [("-b" "--build-time") "Include build-time dependencies" (set! build-deps? #t)]
    #:args pkgs
    pkgs))
 
-(unless local?
-  (raise-user-error "Global audit is not yet implemented"))
-
-(define (format-req-by req-by)
-  (cond
-    [req-by
-     (format "(required by: ~a)" req-by)]
-    [else ""]))
+(define (print-auditable collectibles)
+  (display
+   (string-join
+    (map
+     (λ (s) (string-trim s #:left? #f))
+     (string-split
+      (table->string
+       #:border-style 'space
+       #:row-sep? #f
+       #:framed? #f
+       (for/list ([pkg collectibles])
+         (match-define (package name required-by license mode) pkg)
+         (append
+          (list (case mode
+                  [(local)  "[l] "]
+                  [(global) "[g] "]
+                  [(unknown/local) "[u] "]
+                  [(unknown/global) "[u] "]
+                  [else (error 'unreachable)])
+                (~a name " ")
+                (cond
+                  [required-by
+                   (format "~a " required-by)]
+                  [else "- "]))
+          (case mode
+            [(unknown/local unknown/global) '("can't find the package")]
+            [else (list (~a (or license "no license indicated")))]))))
+      "\n"))
+    "\n")))
 
 (for ([pkg pkgs])
   (printf "=== package: ~a ===\n\n" pkg)
   (define-values (collectibles non-collectibles)
-    (get-license/local pkg #:build-deps? build-deps?))
-  (printf "Auditable packages:\n")
-
-  (print-table
-   #:border-style 'space
-   #:row-sep? #f
-   #:framed? #f
-   (for/list ([pkg collectibles])
-     (match-define (package name required-by license) pkg)
-     (list (~a name " ")
-           (~a (or license "no license indicated") " ")
-           (format-req-by required-by))))
-
-  (newline)
-  (printf "Non-auditable packages:\n")
-  (print-table
-   #:border-style 'space
-   #:row-sep? #f
-   #:framed? #f
-   (for/list ([pkg non-collectibles])
-     (match-define (package name required-by _) pkg)
-     (list (~a name " ")
-           (format-req-by required-by))))
-  (newline))
+    (case mode
+      [(local)
+       (get-license/local pkg #:build-deps? build-deps?)]
+      [(global)
+       (get-license/global pkg
+                           #:build-deps? build-deps?
+                           #:local? #f)]
+      [(#f)
+       (get-license/global pkg
+                           #:build-deps? build-deps?
+                           #:local? #t)]
+      [else (error 'unreachable)]))
+  (print-auditable (append collectibles non-collectibles)))
