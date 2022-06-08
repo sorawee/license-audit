@@ -12,6 +12,7 @@
 (define build-deps? #f)
 (define group-by-author? #f)
 (define no-main-dist? #f)
+(define show-tags? #f)
 
 (define pkgs
   (command-line
@@ -21,6 +22,7 @@
    [("-g" "--global-only") "Only use global packages" (set! mode 'global)]
    #:once-each
    [("--build-time") "Include build-time dependencies" (set! build-deps? #t)]
+   [("--tags") "Show tags" (set! show-tags? #t)]
    [("--no-main-distribution") "Do not include packages in the main distribution"
                                (set! no-main-dist? #t)]
    [("--author") "Group by author" (set! group-by-author? #t)]
@@ -55,10 +57,10 @@
        #:row-sep? #f
        #:framed? #f
        (for/list ([pkg collectibles])
-         (match-define (package name required-by license mode author) pkg)
+         (match-define (package name required-by license mode author tags) pkg)
          (append
           (cond
-            [group-by-author? (list (wrap author #:extra 1))]
+            [group-by-author? (list (wrap (or author "no information") #:extra 1))]
             [else '()])
           (list (case mode
                   [(local)  "[l] "]
@@ -71,8 +73,11 @@
                   [required-by required-by]
                   [else "- "])
                 (case mode
-                  [(unknown/local unknown/global) "can't find the package"]
-                  [else (wrap (or license "no license indicated"))])))))
+                  [(unknown/local unknown/global) "can't find the package "]
+                  [else (wrap (or license "no license indicated") #:extra 1)]))
+          (cond
+            [show-tags? (list (wrap (or tags "no information")))]
+            [else '()]))))
       "\n"))
     "\n")))
 
@@ -102,10 +107,24 @@
                               #:build-deps? #t
                               #:local? #f)])]
       [else (values '() '())]))
-  (define main-dist
-    (for/set ([pkg (append main-collectibles main-non-collectibles)])
+  (define-values (main-test-collectibles main-test-non-collectibles)
+    (cond
+      [no-main-dist?
+       (case mode
+         [(local)
+          (get-license/local "main-distribution-test" #:build-deps? #t)]
+         [else
+          (get-license/global "main-distribution-test"
+                              #:build-deps? #t
+                              #:local? #f)])]
+      [else (values '() '())]))
+  (define excludes
+    (for/set ([pkg (append main-collectibles
+                           main-non-collectibles
+                           main-test-collectibles
+                           main-test-non-collectibles)])
       (package-name pkg)))
   (print-auditable
    (for/list ([pkg (append collectibles non-collectibles)]
-              #:unless (set-member? main-dist (package-name pkg)))
+              #:unless (set-member? excludes (package-name pkg)))
      pkg)))

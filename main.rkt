@@ -16,7 +16,7 @@
 
 (define-runtime-path test-data-path "data/pkgs-all.json.gz")
 
-(struct package (name required-by license mode author) #:transparent)
+(struct package (name required-by license mode author tags) #:transparent)
 
 (define (get-license/local pkg
                            #:build-deps? [build-deps? #f]
@@ -34,7 +34,7 @@
          (define get-info (get-info/full dir))
 
          (set! *collectibles*
-               (cons (package pkg required-by (get-info 'license (λ () #f)) 'local #f)
+               (cons (package pkg required-by (get-info 'license (λ () #f)) 'local #f #f)
                      *collectibles*))
 
          (define direct-deps
@@ -48,13 +48,13 @@
            (loop dep pkg))]
         [else
          (set! *non-collectibles*
-               (cons (package pkg required-by #f 'unknown/local #f)
+               (cons (package pkg required-by #f 'unknown/local #f #f)
                      *non-collectibles*))])))
 
   (values (reverse *collectibles*)
           ;; handle "racket" specially
           (filter-not (match-lambda
-                        [(package "racket" _ _ _ _) #t]
+                        [(package "racket" _ _ _ _ _) #t]
                         [_ #f])
                       (reverse *non-collectibles*))))
 
@@ -104,7 +104,8 @@
                                     required-by
                                     (hash-ref pkg-info 'license)
                                     'global
-                                    (hash-ref pkg-info 'author))
+                                    (hash-ref pkg-info 'author)
+                                    (hash-ref pkg-info 'tags))
                            *collectibles*))
 
                (define direct-deps
@@ -124,6 +125,7 @@
                                     required-by
                                     #f
                                     'unknown/global
+                                    #f
                                     #f)
                            *non-collectibles*))])])))
 
@@ -136,6 +138,6 @@
      (values (reverse *collectibles*)
              ;; handle "racket" specially
              (filter-not (match-lambda
-                           [(package "racket" _ _ _ _) #t]
+                           [(package "racket" _ _ _ _ _) #t]
                            [_ #f])
                          (reverse *non-collectibles*))))))
