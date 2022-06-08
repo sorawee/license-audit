@@ -16,7 +16,7 @@
 
 (define-runtime-path test-data-path "data/pkgs-all.json.gz")
 
-(struct package (name required-by license mode) #:transparent)
+(struct package (name required-by license mode author) #:transparent)
 
 (define (get-license/local pkg
                            #:build-deps? [build-deps? #f]
@@ -34,7 +34,7 @@
          (define get-info (get-info/full dir))
 
          (set! *collectibles*
-               (cons (package pkg required-by (get-info 'license (λ () #f)) 'local)
+               (cons (package pkg required-by (get-info 'license (λ () #f)) 'local #f)
                      *collectibles*))
 
          (define direct-deps
@@ -48,31 +48,38 @@
            (loop dep pkg))]
         [else
          (set! *non-collectibles*
-               (cons (package pkg required-by #f 'unknown/local)
+               (cons (package pkg required-by #f 'unknown/local #f)
                      *non-collectibles*))])))
 
   (values (reverse *collectibles*)
           ;; handle "racket" specially
           (filter-not (match-lambda
-                        [(package "racket" _ _ _) #t]
+                        [(package "racket" _ _ _ _) #t]
                         [_ #f])
                       (reverse *non-collectibles*))))
 
-(define (parse-license x) x)
+(define caches (make-hash))
+
+(define (call/url url proc)
+  (proc (hash-ref! caches
+                   url
+                   (λ ()
+                     (call/input-url
+                      (string->url url)
+                      get-pure-port
+                      (λ (p)
+                        (define-values (in out) (make-pipe))
+                        (gunzip-through-ports p out)
+                        (read-json in)))))))
 
 (define (get-license/global
-         pkg
-         #:build-deps? [build-deps? #f]
-         #:local? [local? #f]
-         #:url [url (string-append "file://" (path->string test-data-path))])
-  (call/input-url
-   (string->url url)
-   get-pure-port
-   (λ (p)
-     (define-values (in out) (make-pipe))
-     (gunzip-through-ports p out)
-     (define json (read-json in))
-
+               pkg
+               #:build-deps? [build-deps? #f]
+               #:local? [local? #f]
+               #:url [url (string-append "file://" (path->string test-data-path))])
+  (call/url
+   url
+   (λ (json)
      (define seen (mutable-set))
      (define *collectibles* '())
      (define *non-collectibles* '())
@@ -95,8 +102,9 @@
                (set! *collectibles*
                      (cons (package pkg
                                     required-by
-                                    (parse-license (hash-ref pkg-info 'license))
-                                    'global)
+                                    (hash-ref pkg-info 'license)
+                                    'global
+                                    (hash-ref pkg-info 'author))
                            *collectibles*))
 
                (define direct-deps
@@ -115,7 +123,8 @@
                      (cons (package pkg
                                     required-by
                                     #f
-                                    'unknown/global)
+                                    'unknown/global
+                                    #f)
                            *non-collectibles*))])])))
 
      (match pkg
@@ -124,11 +133,9 @@
           (loop (symbol->string pkg) "@" local?))]
        [_ (loop pkg #f local?)])
 
-
-
      (values (reverse *collectibles*)
              ;; handle "racket" specially
              (filter-not (match-lambda
-                           [(package "racket" _ _ _) #t]
+                           [(package "racket" _ _ _ _) #t]
                            [_ #f])
                          (reverse *non-collectibles*))))))

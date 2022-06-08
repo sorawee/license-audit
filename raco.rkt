@@ -10,6 +10,8 @@
 
 (define mode #f)
 (define build-deps? #f)
+(define group-by-author? #f)
+(define no-main-dist? #f)
 
 (define pkgs
   (command-line
@@ -18,11 +20,31 @@
    [("-l" "--local-only") "Only use local packages" (set! mode 'local)]
    [("-g" "--global-only") "Only use global packages" (set! mode 'global)]
    #:once-each
-   [("-b" "--build-time") "Include build-time dependencies" (set! build-deps? #t)]
+   [("--build-time") "Include build-time dependencies" (set! build-deps? #t)]
+   [("--no-main-distribution") "Do not include packages in the main distribution"
+                               (set! no-main-dist? #t)]
+   [("--author") "Group by author" (set! group-by-author? #t)]
    #:args pkgs
    pkgs))
 
-(define (print-auditable collectibles)
+(define (wrap s #:width [width 32] #:extra [extra 0])
+  (define extra-space (make-string extra #\space))
+  (string-join
+   (for/list ([slice (in-slice width (~a s))])
+     (string-append (apply string slice) extra-space))
+   "\n"))
+
+(define (print-auditable pre-collectibles)
+  (define collectibles
+    (cond
+      [group-by-author?
+       (sort pre-collectibles string<?
+             #:key (λ (p)
+                     (define author (package-author p))
+                     (cond
+                       [author author]
+                       [else ""])))]
+      [else pre-collectibles]))
   (display
    (string-join
     (map
@@ -33,22 +55,24 @@
        #:row-sep? #f
        #:framed? #f
        (for/list ([pkg collectibles])
-         (match-define (package name required-by license mode) pkg)
+         (match-define (package name required-by license mode author) pkg)
          (append
+          (cond
+            [group-by-author? (list (wrap author #:extra 1))]
+            [else '()])
           (list (case mode
                   [(local)  "[l] "]
                   [(global) "[g] "]
                   [(unknown/local) "[u] "]
                   [(unknown/global) "[u] "]
                   [else (error 'unreachable)])
-                (~a name " ")
+                (wrap name #:extra 1)
                 (cond
-                  [required-by
-                   (format "~a " required-by)]
-                  [else "- "]))
-          (case mode
-            [(unknown/local unknown/global) '("can't find the package")]
-            [else (list (~a (or license "no license indicated")))]))))
+                  [required-by required-by]
+                  [else "- "])
+                (case mode
+                  [(unknown/local unknown/global) "can't find the package"]
+                  [else (wrap (or license "no license indicated"))])))))
       "\n"))
     "\n")))
 
@@ -67,4 +91,21 @@
                            #:build-deps? build-deps?
                            #:local? #t)]
       [else (error 'unreachable)]))
-  (print-auditable (append collectibles non-collectibles)))
+  (define-values (main-collectibles main-non-collectibles)
+    (cond
+      [no-main-dist?
+       (case mode
+         [(local)
+          (get-license/local "main-distribution" #:build-deps? #t)]
+         [else
+          (get-license/global "main-distribution"
+                              #:build-deps? #t
+                              #:local? #f)])]
+      [else (values '() '())]))
+  (define main-dist
+    (for/set ([pkg (append main-collectibles main-non-collectibles)])
+      (package-name pkg)))
+  (print-auditable
+   (for/list ([pkg (append collectibles non-collectibles)]
+              #:unless (set-member? main-dist (package-name pkg)))
+     pkg)))
