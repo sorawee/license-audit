@@ -62,8 +62,11 @@
   (define (loop pkg required-by)
     (unless (set-member? seen pkg)
       (set-add! seen pkg)
-      (define dir (pkg-directory pkg))
-      (cond
+      (match (pkg-directory pkg)
+        [#f
+         (set! *non-collectibles*
+               (cons (package pkg required-by #f 'unknown/local #f #f)
+                     *non-collectibles*))]
         [dir
          (define get-info (get-info/full dir))
 
@@ -84,11 +87,7 @@
                [(cons dep _) dep])))
 
          (for ([dep direct-deps])
-           (loop dep pkg))]
-        [else
-         (set! *non-collectibles*
-               (cons (package pkg required-by #f 'unknown/local #f #f)
-                     *non-collectibles*))])))
+           (loop dep pkg))])))
 
   (match (resolve-meta-pkg pkg)
     [#f (loop pkg required-by)]
@@ -153,8 +152,11 @@
            (loop (package-name pkg-dep) (package-required-by pkg-dep) #f))]
         [else
          (set-add! seen pkg)
-         (define pkg-info (hash-ref json (string->symbol pkg) #f))
-         (cond
+         (match (hash-ref json (string->symbol pkg) #f)
+           [#f
+            (set! *non-collectibles*
+                  (cons (package pkg required-by #f 'unknown/global #f #f)
+                        *non-collectibles*))]
            [pkg-info
             (set! *collectibles*
                   (cons (package pkg
@@ -175,16 +177,7 @@
                   [(cons dep _) dep])))
 
             (for ([dep (in-list direct-deps)])
-              (loop dep pkg local?))]
-           [else
-            (set! *non-collectibles*
-                  (cons (package pkg
-                                 required-by
-                                 #f
-                                 'unknown/global
-                                 #f
-                                 #f)
-                        *non-collectibles*))])])))
+              (loop dep pkg local?))])])))
 
   (match (resolve-meta-pkg pkg)
     [#f (loop pkg #f local?)]
