@@ -6,7 +6,8 @@
 (require raco/command-name
          license-audit
          racket/cmdline
-         text-table)
+         text-table
+         (prefix-in p: pprint))
 
 (define mode #f)
 (define build-deps? #f)
@@ -22,67 +23,96 @@
    [("-g" "--global-only") "Only use global packages" (set! mode 'global)]
    #:once-each
    [("--build-time") "Include build-time dependencies" (set! build-deps? #t)]
-   [("--tags") "Show tags" (set! show-tags? #t)]
    [("--no-main-distribution") "Do not include packages in the main distribution"
                                (set! no-main-dist? #t)]
-   [("--author") "Group by author" (set! group-by-author? #t)]
+   [("--tags") "Show tags" (set! show-tags? #t)]
+   [("--authors") "Show authors (and group by them)" (set! group-by-author? #t)]
    #:args pkgs
    pkgs))
 
-(define (wrap s #:width [width 32] #:extra [extra 0])
-  (define extra-space (make-string extra #\space))
+(when (and (or group-by-author? show-tags?) (not (eq? mode 'global)))
+  (raise-user-error "Showing tags or authors requires --global-only"))
+
+(define (wrap s #:width [width 32])
   (string-join
-   (for/list ([slice (in-slice width (~a s))])
-     (string-append (apply string slice) extra-space))
+   (for/list ([slice (in-slice width (in-string (~a s)))])
+     (apply string slice))
    "\n"))
 
-(define (print-auditable pre-collectibles)
-  (define collectibles
+(define (wrap-sexp d)
+  (parameterize ([p:current-page-width 32])
+    (p:pretty-format
+     (let loop ([d (cond
+                     [(string? d) (read (open-input-string d))]
+                     [else d])])
+       (cond
+         [(list? d)
+          (p:nest 1
+                  (p:h-append (p:text "(")
+                              (p:h-concat (p:apply-infix p:soft-line (map loop d)))
+                              (p:text ")")))]
+         [else (p:text (~a d))])))))
+
+(define (print-output pkgs*)
+  (define (cmp<? a b)
+    (cond
+      [(and a b) (string<? a b)]
+      [a #f]
+      [b #t]
+      [else #f]))
+  (define pkgs
     (cond
       [group-by-author?
-       (sort pre-collectibles string<?
-             #:key (λ (p)
-                     (define author (package-author p))
-                     (cond
-                       [author author]
-                       [else ""])))]
-      [else pre-collectibles]))
-  (display
-   (string-join
-    (map
-     (λ (s) (string-trim s #:left? #f))
-     (string-split
-      (table->string
-       #:border-style 'space
-       #:row-sep? #f
-       #:framed? #f
-       (for/list ([pkg collectibles])
-         (match-define (package name required-by license mode author tags) pkg)
-         (append
-          (cond
-            [group-by-author? (list (wrap (or author "no information") #:extra 1))]
-            [else '()])
-          (list (case mode
-                  [(local)  "[l] "]
-                  [(global) "[g] "]
-                  [(unknown/local) "[u] "]
-                  [(unknown/global) "[u] "]
-                  [else (error 'unreachable)])
-                (wrap name #:extra 1)
-                (cond
-                  [required-by required-by]
-                  [else "- "])
-                (case mode
-                  [(unknown/local unknown/global) "can't find the package "]
-                  [else (wrap (or license "no license indicated") #:extra 1)]))
-          (cond
-            [show-tags? (list (wrap (or tags "no information")))]
-            [else '()]))))
-      "\n"))
-    "\n")))
+       (sort pkgs* cmp<? #:key package-author)]
+      [else pkgs*]))
+  (displayln
+   (table->string
+    #:border-style
+    '(("╭─" "─" "─┬─" "─╮")
+      ("│ " " " " │ " " │")
+      ("├─" "─" "─┼─" "─┤")
+      ("╰─" "─" "─┴─" "─╯"))
+    #:row-sep? '(#t #f ...)
+    (cons
+     (append '(" * " "package name" "required by" "license")
+             (cond
+               [group-by-author? (list "author")]
+               [else '()])
+             (cond
+               [show-tags? '("tags")]
+               [else '()]))
+     (for/list ([pkg (in-list pkgs)])
+       (match-define (package name required-by license mode author tags) pkg)
+       (append
+        (list (case mode
+                [(local)  "[l]"]
+                [(global) "[g]"]
+                [(unknown/local) "[u]"]
+                [(unknown/global) "[U]"]
+                [else (error 'unreachable)])
+              (wrap name)
+              (cond
+                [required-by required-by]
+                [else "-"])
+              (case mode
+                [(unknown/local unknown/global) "-"]
+                [else (cond
+                        [license (wrap-sexp license)]
+                        [else "no license indicated"])]))
+        (cond
+          [group-by-author? (list (cond
+                                    [author (string-join (string-split author " ") "\n")]
+                                    [else "-"]))]
+          [else '()])
+        (cond
+          [show-tags? (list (cond
+                              [tags (wrap-sexp tags)]
+                              [else "-"]))]
+          [else '()])))))))
 
-(for ([pkg pkgs])
+(for ([pkg (in-list pkgs)])
   (printf "=== package: ~a ===\n\n" pkg)
+
   (define-values (collectibles non-collectibles)
     (case mode
       [(local)
@@ -96,6 +126,7 @@
                            #:build-deps? build-deps?
                            #:local? #t)]
       [else (error 'unreachable)]))
+
   (define-values (main-collectibles main-non-collectibles)
     (cond
       [no-main-dist?
@@ -107,6 +138,7 @@
                               #:build-deps? #t
                               #:local? #f)])]
       [else (values '() '())]))
+
   (define-values (main-test-collectibles main-test-non-collectibles)
     (cond
       [no-main-dist?
@@ -118,13 +150,16 @@
                               #:build-deps? #t
                               #:local? #f)])]
       [else (values '() '())]))
+
   (define excludes
-    (for/set ([pkg (append main-collectibles
-                           main-non-collectibles
-                           main-test-collectibles
-                           main-test-non-collectibles)])
+    (for/set ([pkg (in-sequences (in-list main-collectibles)
+                                 (in-list main-non-collectibles)
+                                 (in-list main-test-collectibles)
+                                 (in-list main-test-non-collectibles))])
       (package-name pkg)))
-  (print-auditable
-   (for/list ([pkg (append collectibles non-collectibles)]
+
+  (print-output
+   (for/list ([pkg (in-sequences (in-list (reverse collectibles))
+                                 (in-list (reverse non-collectibles)))]
               #:unless (set-member? excludes (package-name pkg)))
      pkg)))
