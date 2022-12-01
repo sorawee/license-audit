@@ -1,7 +1,21 @@
 #lang scribble/manual
 @require[@for-label[license-audit
                     racket/base]
+         scribble/example
          scribble/bnf]
+
+@(define (setup-eval path)
+    (define eval (make-log-based-eval path 'replay))
+    (eval '(require racket/port))
+    (eval '(define (run flags)
+             (with-output-to-string
+               (λ ()
+                 (parameterize ([current-command-line-arguments flags])
+                   (dynamic-require 'license-audit/raco #f))))))
+    eval)
+
+@(define eval-1 (setup-eval "scribblings/ex1.rktd"))
+@(define eval-2 (setup-eval "scribblings/ex2.rktd"))
 
 @title{license-audit: audit package licenses}
 @author[@author+email["Sorawee Porncharoenwase" "sorawee.pwase@gmail.com"]]
@@ -44,80 +58,11 @@ The @exec{raco license-audit} command accepts the following @nonterm{option}s:
 
 As an example, running @exec{raco license-audit --local-only license-audit} on some systems might output the following
 
-@verbatim|{
-=== package: license-audit ===
-
-╭─────┬───────────────────────────────┬───────────────┬──────────────────────────────╮
-│  *  │ package name                  │ required by   │ license                      │
-├─────┼───────────────────────────────┼───────────────┼──────────────────────────────┤
-│ [l] │ license-audit                 │ -             │ (Apache-2.0 OR MIT)          │
-│ [l] │ base                          │ license-audit │ (Apache-2.0 OR MIT)          │
-│ [l] │ racket-lib                    │ base          │ (Apache-2.0 OR MIT)          │
-│ [l] │ racket-aarch64-macosx-3       │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  (BSD-3-clause AND OpenSSL)) │
-│ [l] │ text-table                    │ license-audit │ no license indicated         │
-│ [u] │ racket-win32-i386-3           │ racket-lib    │ -                            │
-│ [u] │ racket-win32-x86_64-3         │ racket-lib    │ -                            │
-│ [u] │ racket-win32-arm64-3          │ racket-lib    │ -                            │
-│ [u] │ racket-x86_64-linux-natipkg-3 │ racket-lib    │ -                            │
-│ [u] │ racket-x86_64-macosx-3        │ racket-lib    │ -                            │
-│ [u] │ racket-i386-macosx-3          │ racket-lib    │ -                            │
-│ [u] │ racket-ppc-macosx-3           │ racket-lib    │ -                            │
-│ [u] │ db-ppc-macosx                 │ racket-lib    │ -                            │
-│ [u] │ db-win32-i386                 │ racket-lib    │ -                            │
-│ [u] │ db-win32-x86_64               │ racket-lib    │ -                            │
-│ [u] │ db-win32-arm64                │ racket-lib    │ -                            │
-│ [u] │ db-x86_64-linux-natipkg       │ racket-lib    │ -                            │
-│ [u] │ com-win32-i386                │ racket-lib    │ -                            │
-│ [u] │ com-win32-x86_64              │ racket-lib    │ -                            │
-╰─────┴───────────────────────────────┴───────────────┴──────────────────────────────╯
-}|
+@(verbatim (eval-1 '(run #("--local-only" "license-audit"))))
 
 However, running the same command without @DFlag{local-only} produces:
 
-@verbatim|{
-=== package: license-audit ===
-
-╭─────┬───────────────────────────────┬───────────────┬──────────────────────────────╮
-│  *  │ package name                  │ required by   │ license                      │
-├─────┼───────────────────────────────┼───────────────┼──────────────────────────────┤
-│ [l] │ license-audit                 │ -             │ (Apache-2.0 OR MIT)          │
-│ [l] │ base                          │ license-audit │ (Apache-2.0 OR MIT)          │
-│ [l] │ racket-lib                    │ base          │ (Apache-2.0 OR MIT)          │
-│ [l] │ racket-aarch64-macosx-3       │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  (BSD-3-clause AND OpenSSL)) │
-│ [l] │ text-table                    │ license-audit │ no license indicated         │
-│ [g] │ com-win32-x86_64              │ racket-lib    │ (Apache-2.0 OR MIT)          │
-│ [g] │ com-win32-i386                │ racket-lib    │ (Apache-2.0 OR MIT)          │
-│ [g] │ db-x86_64-linux-natipkg       │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  blessing)                   │
-│ [g] │ db-win32-arm64                │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  blessing)                   │
-│ [g] │ db-win32-x86_64               │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  blessing)                   │
-│ [g] │ db-win32-i386                 │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  blessing)                   │
-│ [g] │ db-ppc-macosx                 │ racket-lib    │ (blessing AND (Apache-2.0 OR │
-│     │                               │               │   MIT))                      │
-│ [g] │ racket-ppc-macosx-3           │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  OpenSSL)                    │
-│ [g] │ racket-i386-macosx-3          │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  (BSD-3-clause AND OpenSSL)) │
-│ [g] │ racket-x86_64-macosx-3        │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  (BSD-3-clause AND OpenSSL)) │
-│ [g] │ racket-x86_64-linux-natipkg-3 │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  OpenSSL)                    │
-│ [g] │ racket-win32-arm64-3          │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  (LGPL-3.0-or-later AND      │
-│     │                               │               │   OpenSSL))                  │
-│ [g] │ racket-win32-x86_64-3         │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  (LGPL-3.0-or-later AND      │
-│     │                               │               │   OpenSSL))                  │
-│ [g] │ racket-win32-i386-3           │ racket-lib    │ ((Apache-2.0 OR MIT) AND     │
-│     │                               │               │  (LGPL-3.0-or-later AND      │
-│     │                               │               │   OpenSSL))                  │
-╰─────┴───────────────────────────────┴───────────────┴──────────────────────────────╯
-}|
+@(verbatim (eval-2 '(run #("license-audit"))))
 
 @section{Output format}
 
