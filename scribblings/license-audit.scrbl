@@ -14,6 +14,10 @@
                    (dynamic-require 'license-audit/raco #f))))))
     eval)
 
+@; we create two evaluators, since calling dynamic-require on
+@; the same evaluator (in the same namespace in particular)
+@; won't run the code again
+
 @(define eval-1 (setup-eval "scribblings/ex1.rktd"))
 @(define eval-2 (setup-eval "scribblings/ex2.rktd"))
 
@@ -56,7 +60,7 @@ The @exec{raco license-audit} command accepts the following @nonterm{option}s:
 
 @section{Examples}
 
-As an example, running @exec{raco license-audit --local-only license-audit} on some systems might output the following
+As an example, running @exec{raco license-audit --local-only license-audit} on a @tt{aarch64-macosx} system might output the following
 
 @(verbatim (eval-1 '(run #("--local-only" "license-audit"))))
 
