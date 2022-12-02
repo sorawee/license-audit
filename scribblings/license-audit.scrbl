@@ -52,7 +52,7 @@ The @exec{raco license-audit} command accepts the following @nonterm{option}s:
 @itemlist[
   @item{@DFlag{local-only}, @Flag{l} --- only read the license information from locally installed packages.}
   @item{@DFlag{global-only}, @Flag{g} --- only read the license information from the package index server.}
-  @item{@DFlag{build-time}, @Flag{b} --- also include build-time dependencies.}
+  @item{@DFlag{build-time}, @Flag{b} --- include build-time dependencies.}
   @item{@DFlag{no-main-distribution} --- exclude packages in the main distribution (including their transitive dependencies and its tests).}
   @item{@DFlag{tags} --- show tags (this option requires @DFlag{global-only}).}
   @item{@DFlag{authors} --- show authors and group by them (this option requires @DFlag{global-only}).}

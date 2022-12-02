@@ -62,7 +62,7 @@
   (define (loop pkg required-by)
     (unless (set-member? seen pkg)
       (set-add! seen pkg)
-      (match (pkg-directory pkg)
+      (match (pkg-directory pkg #:cache pkg-cache)
         [#f
          (set! *non-collectibles*
                (cons (package pkg required-by #f 'unknown/local #f #f)
@@ -98,6 +98,7 @@
 
 (define temp-path (build-path (find-system-path 'temp-dir) "license-audit"))
 (define cache (make-hash))
+(define pkg-cache (make-hash))
 
 (define (fetch url)
   (define (do-fetch)

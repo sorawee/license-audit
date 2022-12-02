@@ -54,6 +54,7 @@
          [else (p:text (~a d))])))))
 
 (define (print-output pkgs*)
+  (printf "~a packages queried\n\n" (length pkgs*))
   (define (cmp<? a b)
     (cond
       [(and a b) (string<? a b)]
